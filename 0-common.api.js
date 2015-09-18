@@ -7,13 +7,15 @@ exports.forLib = function (LIB) {
 
         var Collection = exports.Collection = function (config) {
             var collection = this;
+            
+            collection._modulePath = config._modulePath;
 
             // If there are no record keys with '@' prefix we assume we got fields
             if (Object.keys(config.record).filter(function (key) {
                 return /^@/.test(key);
             }).length === 0) {
     			config.record = {
-    				"@fields": context.record
+    				"@fields": config.record
     			};
     		}
     		
@@ -169,9 +171,6 @@ console.log("PARSE DATA in collection", data);
         		});
         	}
 
-console.log("init collection", collection);
-
-
             context.registerCollection(config.name, collection);
         }
         Collection.prototype = Object.create(LIB.EventEmitter.prototype);
@@ -186,8 +185,18 @@ console.log("init collection", collection);
     		return this.store.where(query);
     	}
 
+
+
+        var Seed = exports.Seed = function (config) {
+            var seed = this;
+
+    		seed.name = config.name;
+    		seed.records = config.records;
+        }
+
         return {
-            Collection: Collection
+            Collection: Collection,
+            Seed: Seed
         };
     }
 
