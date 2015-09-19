@@ -5,6 +5,7 @@ exports.forLib = function (LIB) {
 
     exports.spin = function (context) {
 
+        var moment = context.contexts.adapters.time.moment.moment;
 
         var Collections = function () {
         	var self = this;
@@ -86,8 +87,9 @@ exports.forLib = function (LIB) {
         							dictionary: foreignDictionary
         						};
         					}
-        
-        					var linksTo = getLinksToForModel(dictionaryForSegment.Record._definition);
+
+        					var linksTo = getLinksToForModel(dictionaryForSegment.Record["@fields"]);
+
         					if (linksTo) {
         						// Our dictionary holds a value that is a key in a foreign dictionary.
         						// We continue resolving the pointer using this foreign dictionary.
@@ -130,7 +132,7 @@ exports.forLib = function (LIB) {
         							dictionary: linksTo.dictionary,
         							query: null,	// Set by prior subscription.
         							get: function () {
-        
+
         								if (Array.isArray(this.query) && this.query.length > 0) {
         
         									var records = this.query.map(function (record) {
@@ -199,16 +201,24 @@ exports.forLib = function (LIB) {
         										}
         									}
         									whereInstance = JSON.parse(whereInstance);
-        
+        									Object.keys(whereInstance).forEach(function (name) {
+        									    if (whereInstance[name] === "*") {
+        									        delete whereInstance[name];
+        									    }
+        									});
         //console.log("WHERE", where);
         //console.log("WHERE queryArgs", this.queryArgs);
         //console.log("WHERE", whereInstance);
         
         									var records = this.dictionary.where(whereInstance);
-        
         									if (consumer) {
         										records = records.map(function (record) {
-        											return consumer.getData(record);
+        										    var fields = consumer.getData(record);
+        											return {
+        											    get: function (name) {
+        											        return fields[name];
+        											    }
+        											};
         										});
         									}
         
@@ -222,7 +232,7 @@ exports.forLib = function (LIB) {
         
         										records = records.shift();
         									}
-        //console.log("RECORDS", records);
+
         									return {
         										dictionary: records
         									};
@@ -266,7 +276,9 @@ exports.forLib = function (LIB) {
         									if (typeof this.dictionary.get !== "function") {
         										throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         									}
-        
+
+        									// TODO: Warn if field does not exist!
+
         									return {
         										dictionary: this.dictionary.get(this.query)
         									};
@@ -349,7 +361,17 @@ exports.forLib = function (LIB) {
         					if (typeof options.suffix !== "undefined") {
         						value = value + options.suffix;
         					}
-        
+
+        					if (typeof options.format === "function") {
+        					    value = options.format(value);
+        					} else
+        					if (
+        					    typeof options.format === "object" &&
+        					    typeof options.format.moment === "string"
+        					) {
+        					    value = moment(value).format(options.format.moment);
+        					}
+
         					return value;
         				} catch (err) {
         					console.error("Error while getting value for pointer '" + pointer + "':", err.stack);
@@ -430,6 +452,18 @@ exports.forLib = function (LIB) {
     			});
         	}
         	
+        	self.ensureDepends = function (helpers) {
+                if (!dataMap["@depends"]) {
+                    return LIB.Promise.resolve();
+                }
+                if (!dataMap["@depends"]["page.components"]) {
+                    return LIB.Promise.resolve();
+                }
+                return LIB.Promise.all(dataMap["@depends"]["page.components"].map(function (id) {
+                    return helpers.getPageComponent(id);
+                }));
+        	}
+
         	self.ensureLoaded = function () {
                 if (!dataMap["@load"]) {
                     return LIB.Promise.resolve();
@@ -457,7 +491,6 @@ exports.forLib = function (LIB) {
         				console.error("Error during '@query' but ignoring:", err.stack);
         			}
         		}
-        
         		var data = {};
         		Object.keys(dataMap["@map"]).forEach(function (name) {
         			if (typeof dataMap["@map"][name] !== "function") {

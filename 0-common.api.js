@@ -26,16 +26,10 @@ exports.forLib = function (LIB) {
 
             
             function makeRecordPrototype () {
-
                 var recordPrototype = {
-        			initialize: function () {
-        				this._super_ = self.Record.__super__;
-        			},
 
         			// TODO: Make configurable
           			idAttribute: "id",
-
-          			"@fields": config.record["@fields"],
 
           			getAll: function (extraFields) {
           				var self = this;
@@ -55,7 +49,7 @@ exports.forLib = function (LIB) {
         
         				var nameParts = name.split("/");
         				var name = nameParts.shift();
-        
+
         				function getValueForField () {
         					if (
         						config.record["@fields"] &&
@@ -69,19 +63,17 @@ exports.forLib = function (LIB) {
 // TODO: If 'typeof context.record[name].connect === "function"' setup consumer and pass along so derived function can register further data connects.
         						return config.record["@fields"][name].derived.call(attrs);
         					}
-        					return recordSelf._super_.get.call(recordSelf, name);
+
+        					return LIB.backbone.Model.prototype.get.call(recordSelf, name);
         				}
-        
-        
+
         				if (
         					nameParts.length > 0 &&
         					config.record["@fields"] &&
         					config.record["@fields"][name] &&
         					config.record["@fields"][name].linksTo
         				) {
-        
         					var value = getValueForField();
-        
         					return exports.get(config.record["@fields"][name].linksTo + "/" + value + "/" + nameParts.join("/"));
         
         				} else {
@@ -96,9 +88,13 @@ exports.forLib = function (LIB) {
         				recordPrototype[name] = config.record["@methods"][name];
         			}
         		}
+        		
+        		return recordPrototype;
             }
 
     		collection.Record = LIB.backbone.Model.extend(makeRecordPrototype());
+    		collection.Record["@fields"] = config.record["@fields"];
+
 
     		collection.Store = LIB.backbone.Collection.extend({
     
