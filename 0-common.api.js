@@ -18,7 +18,17 @@ exports.forLib = function (LIB) {
     				"@fields": config.record
     			};
     		}
-    		
+
+    		// Complete fields
+    		if (config.record["@fields"]) {
+    		    for (var name in config.record["@fields"]) {
+    		        if (!config.record["@fields"][name].type) {
+    		            config.record["@fields"][name].type = "string";
+    		        }
+    		    }
+    		}
+
+
     		collection.name = config.name;
 
             // TODO: Make this also configurable using 'context'
@@ -71,10 +81,10 @@ exports.forLib = function (LIB) {
         					nameParts.length > 0 &&
         					config.record["@fields"] &&
         					config.record["@fields"][name] &&
-        					config.record["@fields"][name].linksTo
+        					config.record["@fields"][name].linksToOne
         				) {
         					var value = getValueForField();
-        					return exports.get(config.record["@fields"][name].linksTo + "/" + value + "/" + nameParts.join("/"));
+        					return exports.get(config.record["@fields"][name].linksToOne + "/" + value + "/" + nameParts.join("/"));
         
         				} else {
         
@@ -178,7 +188,23 @@ console.log("PARSE DATA in collection", data);
     		return this.store.get(id);
     	}
     	Collection.prototype.where = function (query) {
-    		return this.store.where(query);
+
+            // We need to convert some string query values to integers or they
+            // will not match anything.
+            // TODO: Do this more deterministically. i.e. field type in DB and client model and query should match.
+    	    var concreteQuery = {};
+    	    for (var name in query) {
+    	        if (this.Record["@fields"][name].linksToOne) {
+    	            concreteQuery[name] = parseInt(query[name] || "0");
+    	            if (concreteQuery[name] === 0) {
+    	                delete concreteQuery[name];
+    	            }
+    	        } else {
+    	            concreteQuery[name] = query[name];
+    	        }
+    	    }
+
+    		return this.store.where(concreteQuery);
     	}
 
 

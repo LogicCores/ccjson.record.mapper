@@ -75,7 +75,7 @@ exports.forLib = function (LIB) {
         						var linksTo = (
         							Model &&
         							Model[pointerSegment] &&
-        							Model[pointerSegment].linksTo
+        							Model[pointerSegment].linksToOne
         						) || null;
         						if (!linksTo) return null;
         						var foreignDictionary = rootCollections.get(linksTo);
@@ -146,7 +146,9 @@ exports.forLib = function (LIB) {
         
         
         								if (typeof this.dictionary.get !== "function") {
-        									throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
+        								    console.warn("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
+        								    return {};
+        									//throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         								}
         
         								return {
@@ -274,7 +276,9 @@ exports.forLib = function (LIB) {
         								get: function () {
         
         									if (typeof this.dictionary.get !== "function") {
-        										throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
+            								    console.warn("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
+            								    return {};
+            									//throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         									}
 
         									// TODO: Warn if field does not exist!
