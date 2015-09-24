@@ -15,67 +15,60 @@ exports.forLib = function (LIB) {
             var Entity = function (instanceConfig) {
                 var self = this;
 
+                var config = {};
+                LIB._.merge(config, defaultConfig);
+                LIB._.merge(config, instanceConfig);
+                config = ccjson.attachDetachedFunctions(config);
+
+                var context = config.context();
+
+                var api = context.adapters["data.mapper"].loadCollectionModelsForPath(config.collectionsPath).then(function (models) {
+
+                    var Producer = function () {
+                        var self = this;
+                        
+                        var context = null;
+                        var producer = null;
+
+                        self.setDataContext = function (_context) {
+                            context = _context;
+                        }
+                        self.setDataProducer = function (_producer) {
+                            producer = _producer;
+                        }
+
+                        self.app = function (options) {
+                            return function (req, res, next) {
+                                return LIB.Promise.try(function () {
+                                    return producer(
+                                        options.context,
+                                        options.pointer
+                                    );
+                                }).then(function (result) {
+                                    res.writeHead(200, {
+                                        "Content-Type": "application/json"
+                                    });
+                                    res.end(JSON.stringify(result, null, 4));
+                                    return;
+                                }).catch(next);
+                            };
+                        }
+                    }
+
+                    var api = {
+                        Producer: Producer,
+                        models: models
+                    };
+
+                    context.setAdapterAPI(api);
+
+                    return api;
+                });
+
                 self.AspectInstance = function (aspectConfig) {
 
-                    var config = {};
-                    LIB._.merge(config, defaultConfig);
-                    LIB._.merge(config, instanceConfig);
-                    LIB._.merge(config, aspectConfig);
-                    config = ccjson.attachDetachedFunctions(config);
+                    return api.then(function (api) {
 
-
-                    var contexts = new CONTEXTS.adapters.context.server.Context({
-                        "data": {
-                            "config": {},
-                            "adapters": {
-                                "mapper": "ccjson.record.mapper"
-                            }
-                        },
-                        "time": {
-                            "adapters": {
-                                "moment": "moment"
-                            }
-                        }
-                    });
-                    return contexts.adapters.data.mapper.loadCollectionModelsForPath(config.collectionsPath).then(function (models) {
-
-
-                        var Producer = function () {
-                            var self = this;
-                            
-                            var context = null;
-                            var producer = null;
-    
-                            self.setDataContext = function (_context) {
-                                context = _context;
-                            }
-                            self.setDataProducer = function (_producer) {
-                                producer = _producer;
-                            }
-    
-                            self.app = function (options) {
-                                return function (req, res, next) {
-                                    return LIB.Promise.try(function () {
-                                        return producer(
-                                            options.context,
-                                            options.pointer
-                                        );
-                                    }).then(function (result) {
-                                        res.writeHead(200, {
-                                            "Content-Type": "application/json"
-                                        });
-                                        res.end(JSON.stringify(result, null, 4));
-                                        return;
-                                    }).catch(next);
-                                };
-                            }
-                        }
-    
-    
-                        var context = {
-                            Producer: Producer
-                        };
-    
                         return LIB.Promise.resolve({
                             collectionsApiBundleApp: function () {
                                 return LIB.Promise.resolve(
@@ -85,8 +78,8 @@ exports.forLib = function (LIB) {
                                             var bundle = [];
                                             bundle.push('window.waitForLibrary(function (LIB) {');
                                             bundle.push('    LIB.Collections = {');
-                                            Object.keys(models).forEach(function (modelAlias, i) {
-                                                bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + models[modelAlias]._modulePath + '").forLib(LIB)');
+                                            Object.keys(api.models).forEach(function (modelAlias, i) {
+                                                bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + api.models[modelAlias]._modulePath + '").forLib(LIB)');
                                             });
                                             bundle.push('    };');
                                             bundle.push('});');
@@ -108,24 +101,6 @@ exports.forLib = function (LIB) {
                         							return res.end(bundle);
                         						}).catch(next);
                                             });
-                                        }
-                                    )
-                                );
-                            },
-                            attachToRequestApp: function () {
-                                return LIB.Promise.resolve(
-                                    ccjson.makeDetachedFunction(
-                                        function (req, res, next) {
-                                            if (
-                                                config.request &&
-                                                config.request.contextAlias
-                                            ) {
-                                                if (!req.context) {
-                                                    req.context = {};
-                                                }
-                                                req.context[config.request.contextAlias] = context;
-                                            }
-                                            return next();
                                         }
                                     )
                                 );

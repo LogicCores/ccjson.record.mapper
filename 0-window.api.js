@@ -25,7 +25,6 @@ exports.forLib = function (LIB) {
         
         	var listeners = [];
         
-        
         	function attachListener (target, event, handler) {
         		target.on(event, handler);
         		listeners.push({
@@ -111,7 +110,9 @@ exports.forLib = function (LIB) {
         							// These properties in this structure may update whenever getter chain executes							
         							dictionary: dictionaryForSegment,
         							query: pointerSegment,
-        
+        							getNotifyNamespace: function () {
+        							    return dictionaryForSegment.name + "/" + pointerSegment;
+        							},
         							get: function () {
         
         								var value = this.dictionary.get(this.query);
@@ -131,6 +132,9 @@ exports.forLib = function (LIB) {
         							_name: "linkToGet",
         							dictionary: linksTo.dictionary,
         							query: null,	// Set by prior subscription.
+        							getNotifyNamespace: function () {
+        							    return dictionaryForSegment.name;
+        							},
         							get: function () {
 
         								if (Array.isArray(this.query) && this.query.length > 0) {
@@ -192,7 +196,9 @@ exports.forLib = function (LIB) {
         								// These properties in this structure may update whenever getter chain executes							
         								dictionary: dictionaryForSegment,
         								query: pointerSegment,
-        
+            							getNotifyNamespace: function () {
+            							    return dictionaryForSegment.name + "/" + pointerSegment;
+            							},
         								get: function () {
         
         									var whereInstance = JSON.stringify(where);
@@ -250,7 +256,9 @@ exports.forLib = function (LIB) {
         								// These properties in this structure may update whenever getter chain executes							
         								dictionary: dictionaryForSegment,
         								query: pointerSegment,
-        
+            							getNotifyNamespace: function () {
+            							    return dictionaryForSegment.name + "/" + pointerSegment;
+            							},
         								get: function () {
         
         									var methodName = this.query.replace(/\(\)$/, "");
@@ -272,7 +280,9 @@ exports.forLib = function (LIB) {
         								// These properties in this structure may update whenever getter chain executes							
         								dictionary: dictionaryForSegment,
         								query: pointerSegment,
-        
+            							getNotifyNamespace: function () {
+            							    return dictionaryForSegment.name + "/" + pointerSegment;
+            							},
         								get: function () {
         
         									if (typeof this.dictionary.get !== "function") {
@@ -382,7 +392,48 @@ exports.forLib = function (LIB) {
         					throw err;
         				}
         			}
-        
+
+
+        			var notificationListeners = {};
+        			subscriptions.forEach(function (subscription) {
+        			    var notifyNamespace = subscription.getNotifyNamespace();
+        			    if (!notifyNamespace) return;
+
+    			        // TODO: Add more finer grained change event notifications if field specified.
+                        // 'collection/*'
+                        // 'collection/<field>'
+        			    var m = notifyNamespace.match(/^([^\/]+)\/([^\/]+)$/);
+        			    if (m) {
+        			        notificationListeners["change:" + m[1]] = true;
+        			    } else
+        			    // 'collection'
+        			    if ( (m = notifyNamespace.match(/^([^\/]+)$/)) ) {
+        			        notificationListeners["change:" + m[1]] = true;
+        			    } else
+                        // 'collection/<localField>/<remoteField>'
+        			    if ( (notifyNamespace.match(/^([^\/]+)\/.+$/)) ) {
+        			        // TODO: Add notifier for remote field.
+        			        notificationListeners["change:" + m[1]] = true;
+        			    } else {
+                            throw new Error("TODO: Add parser for notify namsepace pattern '" + notifyNamespace + "'");        			        
+        			    }
+        			});
+        			Object.keys(notificationListeners).forEach(function (parts) {
+console.log("-- DATA NOTIFY LISTENER --", parts);        			    
+        			    parts = parts.split(":");
+        			    var collection = context.getCollection(parts[1]);
+        			    if (!collection) {
+        			        throw new Error("Collection for name '" + parts[1] + "' not found!");
+        			    }
+                        attachListener(collection, parts[0], function (event) {
+                            // TODO: Verify that data has in fact changed (based on last fetched data)
+                            //       and do not fire event if not changed.
+console.log("NOTIFY: mapper collection changed", parts[1], event);
+                            self.emit("changed", event);
+                        });
+        			});
+
+
         			return getter;
         
         		} catch (err) {

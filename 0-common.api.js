@@ -136,35 +136,52 @@ console.log("PARSE DATA in collection", data);
     			});
     		}
 
+    		collection.getModel = function (modelAlias) {
+    		    // TODO: Map model aliases to implementations/instances using ccjson
+    		    var adapter = context.contexts.adapters[modelAlias];
+    		    // TODO: Use standard API to fetch model
+    		    return adapter.models[collection.name];
+    		};
 
-/*
-    	    function emitDebounced (event) {
+    	    function emitDebounced (event, payload) {
     	    	if (!emitDebounced._actor) {
     	    		emitDebounced._actor = {};
     	    	}
     	    	if (!emitDebounced._actor[event]) {
     	    		emitDebounced._actor[event] = LIB._.debounce(function () {
-    	    			self.emit(event);
+    	    		    // The latest payload emitted gets used.
+    	    			collection.emit(event, emitDebounced._actor[event].payload);
     	    		}, 10);
     	    	}
+    	    	emitDebounced._actor[event].payload = payload;
     	    	emitDebounced._actor[event]();
     	    }
-    
-    
+
     		// Fires when anything has changed.
-    		self.store.on("change", function () {
-    			emitDebounced("change");
+    		collection.store.on("change", function () {
+console.log("NOTIFY: collection change", collection.name);
+    			emitDebounced("change", {
+    			    time: Date.now()
+    			});
     		});
-    		self.store.on("sync", function () {
-    			emitDebounced("change");
+    		collection.store.on("sync", function () {
+console.log("NOTIFY: collection sync", collection.name);
+    			emitDebounced("change", {
+    			    time: Date.now()
+    			});
     		});
-    		self.store.on("update", function () {
-    			emitDebounced("change");
+    		collection.store.on("update", function () {
+console.log("NOTIFY: collection update", collection.name);
+    			emitDebounced("change", {
+    			    time: Date.now()
+    			});
     		});
-    		self.store.on("remove", function () {
-    			emitDebounced("change");
+    		collection.store.on("remove", function () {
+console.log("NOTIFY: collection remove", collection.name);
+    			emitDebounced("change", {
+    			    time: Date.now()
+    			});
     		});
-*/
 
 
         	if (config.collection) {
@@ -178,6 +195,8 @@ console.log("PARSE DATA in collection", data);
         	}
 
             context.registerCollection(config.name, collection);
+            
+            collection.setMaxListeners(50);
         }
         Collection.prototype = Object.create(LIB.EventEmitter.prototype);
 
