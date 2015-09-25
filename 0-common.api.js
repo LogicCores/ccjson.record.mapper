@@ -7,8 +7,9 @@ exports.forLib = function (LIB) {
 
         var Collection = exports.Collection = function (config) {
             var collection = this;
-            
+
             collection._modulePath = config._modulePath;
+            collection["#contracts"] = config["#contracts"] || {};
 
             // If there are no record keys with '@' prefix we assume we got fields
             if (Object.keys(config.record).filter(function (key) {
@@ -56,7 +57,7 @@ exports.forLib = function (LIB) {
           			},
         			get: function (name) {
         				var recordSelf = this;
-        
+
         				var nameParts = name.split("/");
         				var name = nameParts.shift();
 
@@ -159,25 +160,25 @@ console.log("PARSE DATA in collection", data);
 
     		// Fires when anything has changed.
     		collection.store.on("change", function () {
-console.log("NOTIFY: collection change", collection.name);
+//console.log("NOTIFY: collection change", collection.name);
     			emitDebounced("change", {
     			    time: Date.now()
     			});
     		});
     		collection.store.on("sync", function () {
-console.log("NOTIFY: collection sync", collection.name);
+//console.log("NOTIFY: collection sync", collection.name);
     			emitDebounced("change", {
     			    time: Date.now()
     			});
     		});
     		collection.store.on("update", function () {
-console.log("NOTIFY: collection update", collection.name);
+//console.log("NOTIFY: collection update", collection.name);
     			emitDebounced("change", {
     			    time: Date.now()
     			});
     		});
     		collection.store.on("remove", function () {
-console.log("NOTIFY: collection remove", collection.name);
+//console.log("NOTIFY: collection remove", collection.name);
     			emitDebounced("change", {
     			    time: Date.now()
     			});
@@ -213,15 +214,18 @@ console.log("NOTIFY: collection remove", collection.name);
             // TODO: Do this more deterministically. i.e. field type in DB and client model and query should match.
     	    var concreteQuery = {};
     	    for (var name in query) {
+/*
     	        if (this.Record["@fields"][name].linksToOne) {
     	            concreteQuery[name] = parseInt(query[name] || "0");
     	            if (concreteQuery[name] === 0) {
     	                delete concreteQuery[name];
     	            }
     	        } else {
+*/
     	            concreteQuery[name] = query[name];
-    	        }
+//    	        }
     	    }
+//console.log("concreteQuery", concreteQuery);
 
     		return this.store.where(concreteQuery);
     	}
@@ -231,6 +235,7 @@ console.log("NOTIFY: collection remove", collection.name);
         var Seed = exports.Seed = function (config) {
             var seed = this;
 
+            seed["#contracts"] = config["#contracts"] || {};
     		seed.name = config.name;
     		seed.records = config.records;
         }

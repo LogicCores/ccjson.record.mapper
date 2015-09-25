@@ -35,6 +35,18 @@ exports.forLib = function (LIB) {
         	}
 
         	var connections = {};
+
+            // TODO: Improve subscription management by building subscriptions based on
+            //       returned data instead of when connecting. Keep the subscribe logic
+            //       that based on declarations walks the in-process requirements so we can
+            //       eagerly init data connections without initiationg a data fetch
+            //       which may only arrive some time later.
+            // TODO: Use 'ccjson.function.tree' to invoke callbaks in a JSON tree after operating
+            //       on each node. When porting logic below, ensure following properties are maintained:
+            //         * Be able to switch out any object at the subscription boundary to empower dynamic dev
+            //           i.e. the IDE can inject axtra subscriptions to manipulate the data flow at runtime
+            //           which then gets persisted to the subscription ccjson.function.tree JSON declaration
+            //           when saving the new data logic.
         	var subscriptions = {};
 
         	self.connect = function (pointer, options, iterator) {
@@ -63,13 +75,24 @@ exports.forLib = function (LIB) {
         				var subscriptions = [];
         
         				var pointerSegment = null;
-        
+        				
+        				var foreignCollectionConsumers = {};
+						function getConsumer (collectionName) {
+							if (!iterator) return null;
+							if (foreignCollectionConsumers[collectionName]) return foreignCollectionConsumers[collectionName];
+							foreignCollectionConsumers[collectionName] = new Consumer(rootCollections, {
+								pointerPrefix: collectionName + "/"
+							});
+							foreignCollectionConsumers[collectionName].mapData(iterator(foreignCollectionConsumers[collectionName]));
+                            return foreignCollectionConsumers[collectionName];							
+						}
+
         				pointerParts.forEach(function (pointerSegment, i) {
         
         					var dictionaryForSegment = dictionary;
         
         					var lastSegment = (i === pointerParts.length -1);
-        
+
         					function getLinksToForModel (Model) {
         						var linksTo = (
         							Model &&
@@ -92,19 +115,7 @@ exports.forLib = function (LIB) {
         					if (linksTo) {
         						// Our dictionary holds a value that is a key in a foreign dictionary.
         						// We continue resolving the pointer using this foreign dictionary.
-        
-        
-        						var consumer = null
-        						function getConsumer (collectionName) {
-        							if (!iterator) return null;
-        							if (consumer) return consumer;
-        							consumer = new Consumer(rootCollections, {
-        								pointerPrefix: collectionName + "/"
-        							});
-        							consumer.mapData(iterator(consumer));
-        						}
-        
-        
+
         						subscriptions.push({
         							_name: "linkToForeign",
         							// These properties in this structure may update whenever getter chain executes							
@@ -116,14 +127,17 @@ exports.forLib = function (LIB) {
         							get: function () {
         
         								var value = this.dictionary.get(this.query);
+    
+                                        var consumer = null;
         
         								if (Array.isArray(value) && value.length > 0) {
         									// NOTE: We assume all records use the same model from the same collection!
-        									getConsumer(value[0].collection.Collection.name);
+        									consumer = getConsumer(value[0].collection.Collection.name);
         								}
         
         								return {
-        									query: value
+        									query: value,
+        									consumer: consumer
         								};
         							}
         						});
@@ -136,25 +150,23 @@ exports.forLib = function (LIB) {
         							    return dictionaryForSegment.name;
         							},
         							get: function () {
+        							    var self = this;
 
         								if (Array.isArray(this.query) && this.query.length > 0) {
         
         									var records = this.query.map(function (record) {
-        										return consumer.getData(record);
+        										return self.consumer.getData(record);
         									});
         
         									return {
         										dictionary: records
         									};
         								}
-        
-        
         								if (typeof this.dictionary.get !== "function") {
         								    console.warn("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         								    return {};
         									//throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         								}
-        
         								return {
         									dictionary: this.dictionary.get(this.query)
         								};
@@ -200,6 +212,7 @@ exports.forLib = function (LIB) {
             							    return dictionaryForSegment.name + "/" + pointerSegment;
             							},
         								get: function () {
+        								    var self = this;
         
         									var whereInstance = JSON.stringify(where);
         									if (this.queryArgs) {
@@ -216,6 +229,7 @@ exports.forLib = function (LIB) {
         									});
         //console.log("WHERE", where);
         //console.log("WHERE queryArgs", this.queryArgs);
+        //console.log("this.dictionary", Object.keys(this.dictionary.store._byId));
         //console.log("WHERE", whereInstance);
         
         									var records = this.dictionary.where(whereInstance);
@@ -343,9 +357,15 @@ exports.forLib = function (LIB) {
         							if (typeof result.query !== "undefined") {
         								subscription.query = result.query;
         							}
+        							if (typeof result.consumer !== "undefined") {
+        								subscription.consumer = result.consumer;
+        							}
         						}
-        
+
         						subscription.queryArgs = queryArgs;
+
+//console.log("CALL SUBSCRIPTION", subscription);
+
         						result = subscription.get.call(subscription);
         
         //console.log("RESULT FOR", result, i);
@@ -419,7 +439,7 @@ exports.forLib = function (LIB) {
         			    }
         			});
         			Object.keys(notificationListeners).forEach(function (parts) {
-console.log("-- DATA NOTIFY LISTENER --", parts);        			    
+//console.log("-- DATA NOTIFY LISTENER --", parts);        			    
         			    parts = parts.split(":");
         			    var collection = context.getCollection(parts[1]);
         			    if (!collection) {
@@ -428,7 +448,7 @@ console.log("-- DATA NOTIFY LISTENER --", parts);
                         attachListener(collection, parts[0], function (event) {
                             // TODO: Verify that data has in fact changed (based on last fetched data)
                             //       and do not fire event if not changed.
-console.log("NOTIFY: mapper collection changed", parts[1], event);
+//console.log("NOTIFY: mapper collection changed", parts[1], event);
                             self.emit("changed", event);
                         });
         			});
