@@ -526,18 +526,6 @@ exports.forLib = function (LIB) {
     			    throw err;
     			});
         	}
-        	
-        	self.ensureDepends = function (helpers) {
-                if (!dataMap["@depends"]) {
-                    return LIB.Promise.resolve();
-                }
-                if (!dataMap["@depends"]["page.components"]) {
-                    return LIB.Promise.resolve();
-                }
-                return LIB.Promise.all(dataMap["@depends"]["page.components"].map(function (id) {
-                    return helpers.getPageComponent(id);
-                }));
-        	}
 
         	self.ensureLoaded = function () {
                 if (!dataMap["@load"]) {
