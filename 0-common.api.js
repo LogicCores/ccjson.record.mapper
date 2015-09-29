@@ -204,8 +204,28 @@ console.log("PARSE DATA in collection", data);
     	Collection.prototype.add = function (record) {
     		return this.store.add(record);
     	}
-    	Collection.prototype.get = function (id) {
-    		return this.store.get(id);
+    	Collection.prototype.get = function (id, options) {
+    	    var collection = this;
+    	    options = options || {};
+/*
+    	    if (options.ensure === true) {
+    	        return new LIB.Promise(function (resolve, reject) {
+    	            try {
+    	                function check () {
+            	            var record = collection.store.get(id);
+            	            if (record) return resolve(record);
+            	            collection.once("change", function (name) {
+            	                return check();
+            	            });
+    	                }
+    	                check();
+    	            } catch (err) {
+    	                return reject(err);
+    	            }
+    	        });
+    	    }
+*/
+    		return collection.store.get(id);
     	}
     	Collection.prototype.where = function (query) {
 

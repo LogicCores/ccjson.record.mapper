@@ -42,7 +42,8 @@ exports.forLib = function (LIB) {
                                 return LIB.Promise.try(function () {
                                     return producer(
                                         options.context,
-                                        options.pointer
+                                        options.pointer,
+                                        req.query || {}
                                     );
                                 }).then(function (result) {
                                     res.writeHead(200, {

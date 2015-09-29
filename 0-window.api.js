@@ -49,6 +49,18 @@ exports.forLib = function (LIB) {
             //           when saving the new data logic.
         	var subscriptions = {};
 
+
+            var sortBy = null;
+        	self.sortBy = function (field, direction) {
+        	    sortBy = {
+        	        field: field,
+        	        direction: direction
+        	    };
+        	}
+        	self.getSortBy = function () {
+        	    return sortBy;
+        	}
+
         	self.connect = function (pointer, options, iterator) {
 
         		if (typeof iterator === "undefined" && typeof options === "function") {
@@ -202,7 +214,16 @@ exports.forLib = function (LIB) {
         							while (match = re.exec(query[2] || "")) {
         								where[match[2]] = match[3];
         							}
-        
+
+                                    function replaceQueryArgs (value, query) {
+                                        if (!query) return value;
+										for (var name in query) {
+											// TODO: Replace multiple occurences.
+											value = value.replace("{" + name + "}", query[name]);
+										}
+										return value;
+                                    }
+
         							subscriptions.push({
         								_name: "query",
         								// These properties in this structure may update whenever getter chain executes							
@@ -215,16 +236,15 @@ exports.forLib = function (LIB) {
         								    var self = this;
         
         									var whereInstance = JSON.stringify(where);
-        									if (this.queryArgs) {
-        										for (var name in this.queryArgs) {
-        											// TODO: Replace multiple occurences.
-        											whereInstance = whereInstance.replace("{" + name + "}", this.queryArgs[name]);
-        										}
-        									}
+											whereInstance = replaceQueryArgs(whereInstance, this.queryArgs);
         									whereInstance = JSON.parse(whereInstance);
         									Object.keys(whereInstance).forEach(function (name) {
         									    if (whereInstance[name] === "*") {
         									        delete whereInstance[name];
+        									    } else
+        									    // HACK: Fields should be converted based on type.
+        									    if (name === "id") {
+        									        whereInstance[name] = parseInt(whereInstance[name]);
         									    }
         									});
         //console.log("WHERE", where);
@@ -232,6 +252,31 @@ exports.forLib = function (LIB) {
         //console.log("this.dictionary", Object.keys(this.dictionary.store._byId));
         //console.log("WHERE", whereInstance);
         
+                                            if (consumer) {
+                                                var sortBy = consumer.getSortBy();
+                                                if (sortBy) {
+                                                    this.dictionary.store.comparator = function (a, b) {
+                                                        var av = a.get(sortBy.field);
+                                                        var bv = b.get(sortBy.field);
+                                                        if (av === bv) {
+                                                            return 0;
+                                                        }
+                                                        if (sortBy.direction === "asc") {
+                                                            if (av > bv) {
+                                                                return 1;
+                                                            }
+                                                            return -1;
+                                                        } else {
+                                                            if (av < bv) {
+                                                                return 1;
+                                                            }
+                                                            return -1;
+                                                        }
+                                                    }
+                                                    this.dictionary.store.sort();
+                                                }
+                                            }
+
         									var records = this.dictionary.where(whereInstance);
         									if (consumer) {
         										records = records.map(function (record) {
@@ -307,8 +352,10 @@ exports.forLib = function (LIB) {
 
         									// TODO: Warn if field does not exist!
 
+											var query = replaceQueryArgs(this.query, this.queryArgs);
+
         									return {
-        										dictionary: this.dictionary.get(this.query)
+        										dictionary: this.dictionary.get(query)
         									};
         								}
         							});
@@ -498,9 +545,22 @@ exports.forLib = function (LIB) {
 
         	self.loadDataSet = function (pointer) {
 
-		        self.emit("loading", pointer);
+                var query = self.getQuery() || {};
 
-                var url = sourceBaseUrl + "/" + pointer;
+                // If any query parameter is `null` or `undefined` we DO NOT run the query!
+                if (Object.keys(query).filter(function (name) {
+                    return (
+                        query[name] === null ||
+                        typeof query[name] === "undefined"
+                    );
+                }).length > 0) {
+// TODO: In debug mode log message that fetch did not take place.
+                    return LIB.Promise.resolve();
+                };
+
+		        self.emit("loading", pointer, query);
+
+                var url = LIB.urijs(sourceBaseUrl + "/" + pointer).query(query).toString();
 
                 pointerLoadPromises[pointer] = new LIB.Promise(function (resolve, reject) {
 
@@ -513,9 +573,11 @@ exports.forLib = function (LIB) {
         			            // TODO: Optionally just issue warning
         			            throw new Error("Collection with name '" + collectionName + "' needed to store fetched data not found!");
         			        }
-                			collection.store.add(data[collectionName], {
-                			    merge: true
-                			});
+                            if (data[collectionName].length > 0) {
+                    			collection.store.add(data[collectionName], {
+                    			    merge: true
+                    			});
+                            }
         			    });
         			}).then(function () {
         		        self.emit("loaded", pointer);
@@ -535,11 +597,8 @@ exports.forLib = function (LIB) {
     		        return pointerLoadPromises[dataSetName];
     		    }));
         	}
-
-        	self.getData = function (dictionary) {
-        		if (!dataMap) {
-        			throw new Error("Data has not yet been mapped!");
-        		}
+        	
+        	self.getQuery = function () {
         		var query = {};
         		if (dataMap["@query"]) {
         			try {
@@ -554,6 +613,14 @@ exports.forLib = function (LIB) {
         				console.error("Error during '@query' but ignoring:", err.stack);
         			}
         		}
+                return query;
+        	}
+
+        	self.getData = function (dictionary) {
+        		if (!dataMap) {
+        			throw new Error("Data has not yet been mapped!");
+        		}
+        		var query = self.getQuery();
         		var data = {};
         		Object.keys(dataMap["@map"]).forEach(function (name) {
         			if (typeof dataMap["@map"][name] !== "function") {
