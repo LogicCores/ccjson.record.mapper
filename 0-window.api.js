@@ -179,8 +179,11 @@ exports.forLib = function (LIB) {
         								    return {};
         									//throw new Error("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
         								}
+
+                                        // TODO: Do this based on schema.
+                                        var id = parseInt(this.query);
         								return {
-        									dictionary: this.dictionary.get(this.query)
+        									dictionary: this.dictionary.get(id)
         								};
         							}
         						});
@@ -245,12 +248,22 @@ exports.forLib = function (LIB) {
         									    // HACK: Fields should be converted based on type.
         									    if (name === "id") {
         									        whereInstance[name] = parseInt(whereInstance[name]);
+        									    } else
+        									    if (typeof whereInstance[name] === "string") {
+            									    if (self.dictionary.Record["@fields"][name].type === "boolean") {
+            									        whereInstance[name] = (
+            									            whereInstance[name] === "true" ||
+            									            whereInstance[name] === "1"
+            									        );
+            									    }
         									    }
         									});
+//console.log("this.dictionary", this.dictionary.Record["@fields"]);
+
         //console.log("WHERE", where);
         //console.log("WHERE queryArgs", this.queryArgs);
         //console.log("this.dictionary", Object.keys(this.dictionary.store._byId));
-        //console.log("WHERE", whereInstance);
+//console.log("WHERE", whereInstance);
         
                                             if (consumer) {
                                                 var sortBy = consumer.getSortBy();
@@ -386,7 +399,7 @@ exports.forLib = function (LIB) {
         					var result = null;
         
         //console.log("RESULT FOR", "subscriptions", subscriptions);
-        
+
         					subscriptions.forEach(function (subscription, i) {
         
         						if (i === 0) {
@@ -524,39 +537,79 @@ exports.forLib = function (LIB) {
         		}
 
         		dataMap = _dataMap;
-
-        		if (dataMap["@load"]) {
-    		        self.emit("loading");
-        		    LIB.Promise.all(dataMap["@load"].map(function (dataSetName) {
-        		        return self.loadDataSet(dataSetName);
-        		    })).then(function () {
-        		        self.emit("loaded");
+        		
+        		if (
+        		    dataMap["@load"] &&
+        		    Array.isArray(dataMap["@load"])
+        		) {
+        		    var load = {};
+        		    dataMap["@load"].forEach(function (pointer) {
+        		        load[pointer] = function (query) {
+        		            // Force loading no matter what the query is.
+        		            return query;
+        		        }
         		    });
+        		    dataMap["@load"] = load;
         		}
+
+                return self.triggerLoadFromServer();
         	}
+
+
+        	self.shouldLoadPointerForQuery = function (pointer, query) {
+        	    return dataMap["@load"][pointer](LIB._.clone(query));
+        	}
+        	
 
             var sourceBaseUrl = null;
 
             self.setSourceBaseUrl = function (url) {
                 sourceBaseUrl = url;
             }
-            
+
             var pointerLoadPromises = {};
+            var lastLoadQuery = "{}";
 
-        	self.loadDataSet = function (pointer) {
-
+        	self.triggerLoadFromServer = function () {
+        		if (!dataMap["@load"]) {
+        		    return LIB.Promise.resolve();
+        		}
+        		
                 var query = self.getQuery() || {};
 
-                // If any query parameter is `null` or `undefined` we DO NOT run the query!
-                if (Object.keys(query).filter(function (name) {
-                    return (
+                var pointers = {};
+                Object.keys(dataMap["@load"]).forEach(function (pointer) {
+                    var pointerQuery = self.shouldLoadPointerForQuery(pointer, query);
+                    if (pointerQuery) {
+                        pointers[pointer] = pointerQuery;
+                    } else {
+                        pointerLoadPromises[pointer] = LIB.Promise.resolve();
+                    }
+                });
+                if (Object.keys(pointers).length === 0) {
+        		    return LIB.Promise.resolve();
+                }
+		        self.emit("loading");
+    		    return LIB.Promise.all(Object.keys(pointers).map(function (pointer) {
+    		        return self.loadDataSet(pointer, pointers[pointer]);
+    		    })).then(function () {
+    		        self.emit("loaded");
+    		    });
+        	}
+
+        	self.loadDataSet = function (pointer, query) {
+
+                // If any query parameter is `null` or `undefined` we DO NOT use that parameter!
+                Object.keys(query).forEach(function (name) {
+                    if (
                         query[name] === null ||
                         typeof query[name] === "undefined"
-                    );
-                }).length > 0) {
-// TODO: In debug mode log message that fetch did not take place.
-                    return LIB.Promise.resolve();
-                };
+                    ) {
+                        delete query[name];
+                    }
+                });
+
+                lastLoadQuery = LIB.CJSON.stringify(query);
 
 		        self.emit("loading", pointer, query);
 
@@ -593,11 +646,11 @@ exports.forLib = function (LIB) {
                 if (!dataMap["@load"]) {
                     return LIB.Promise.resolve();
                 }
-                return LIB.Promise.all(dataMap["@load"].map(function (dataSetName) {
+                return LIB.Promise.all(Object.keys(dataMap["@load"]).map(function (dataSetName) {
     		        return pointerLoadPromises[dataSetName];
     		    }));
         	}
-        	
+
         	self.getQuery = function () {
         		var query = {};
         		if (dataMap["@query"]) {
@@ -621,6 +674,32 @@ exports.forLib = function (LIB) {
         			throw new Error("Data has not yet been mapped!");
         		}
         		var query = self.getQuery();
+
+        	    // We only get the data if the first declared (authorative) data set is loadable.
+        	    if (dataMap["@load"] && !self.shouldLoadPointerForQuery(Object.keys(dataMap["@load"]).shift(), query)) {
+                    return {};
+        	    }
+
+        		// If the query has changed we also trigger a load.
+        		if (lastLoadQuery !== LIB.CJSON.stringify(query)) {
+//console.log("trigger load because query has changed from", lastLoadQuery, " to ", LIB.CJSON.stringify(query));
+                    // NOTE: We do NOT wait for the load to complete. When the data comes in
+                    //       we will be called again.
+                    self.triggerLoadFromServer().catch(function (err) {
+// TODO: Display error somewhere.
+                        console.error("Error laoding data from server:", err.stack);
+                    });
+        		}
+        		
+				Object.keys(query).forEach(function (name) {
+					if (
+					    query[name] === null ||
+					    typeof query[name] === "undefined"
+					) {
+					    query[name] = "*";
+					}
+				});
+
         		var data = {};
         		Object.keys(dataMap["@map"]).forEach(function (name) {
         			if (typeof dataMap["@map"][name] !== "function") {
