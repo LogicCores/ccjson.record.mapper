@@ -3,10 +3,6 @@ exports.forLib = function (LIB) {
     var ccjson = this;
 
     const CONTEXTS = require("../logic.cores/0-server.boot").boot(LIB);
-    
-    
-    // TODO: Use exporter core as declared in 'contexts' below instead of including module directly here
-    const BROWSERIFY = require("../../cores/export/for/browserify/0-server.api").forLib(LIB);
 
 
     return LIB.Promise.resolve({
@@ -91,6 +87,11 @@ exports.forLib = function (LIB) {
                         LIB._.merge(config, aspectConfig);
                         config = ccjson.attachDetachedFunctions(config);
     
+    // HACK: Remove this when we can declare variable in root config.
+if (process.env.ENVIRONMENT_TYPE === "production") {
+config.alwaysRebuild = false;
+}
+
                         return LIB.Promise.resolve({
                             collections: function () {
                                 return LIB.Promise.resolve(
@@ -135,32 +136,56 @@ exports.forLib = function (LIB) {
                                 return LIB.Promise.resolve(
                                     ccjson.makeDetachedFunction(
                                         function (req, res, next) {
-    
-                                            var bundle = [];
-                                            bundle.push('window.waitForLibrary(function (LIB) {');
-                                            bundle.push('    LIB.Collections = {');
-                                            Object.keys(api.models).forEach(function (modelAlias, i) {
-                                                bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + api.models[modelAlias]._modulePath + '").forLib(LIB)');
-                                            });
-                                            bundle.push('    };');
-                                            bundle.push('});');
-    
+
                                             var apiBundleFile = LIB.path.join(config.collectionsDistPath, "ccjson.record.mapper.js");
-                                            return LIB.fs.outputFile(apiBundleFile, bundle.join("\n"), "utf8", function (err) {
-                                                if (err) return next(err);
+                                            var distPath = LIB.path.join(apiBundleFile, "..", "ccjson.record.mapper.dist.js");
+
+                                            return LIB.fs.exists(distPath, function (exists) {
+                                
+                                		        if (
+                                		        	exists &&
+                                		        	(
+                                		        		config.alwaysRebuild === false
+                                		        	)
+                                		        ) {
+                                		           	// We return a pre-built file if it exists and are being asked for it
+                                					res.writeHead(200, {
+                                						"Content-Type": "application/javascript"
+                                					});
+
+                                		           	return LIB.fs.createReadStream(distPath).pipe(res);
+                                	
+                                		        } else {
     
-                        						return BROWSERIFY.bundleFiles(
-                        							LIB.path.dirname(apiBundleFile),
-                        							[
-                        								LIB.path.basename(apiBundleFile)
-                        							],
-                        							LIB.path.join(apiBundleFile, "..", "ccjson.record.mapper.dist.js")
-                        						).then(function (bundle) {
-                        							res.writeHead(200, {
-                        								"Content-Type": "application/javascript"
-                        							});
-                        							return res.end(bundle);
-                        						}).catch(next);
+                                                    var bundle = [];
+                                                    bundle.push('window.waitForLibrary(function (LIB) {');
+                                                    bundle.push('    LIB.Collections = {');
+                                                    Object.keys(api.models).forEach(function (modelAlias, i) {
+                                                        bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + api.models[modelAlias]._modulePath + '").forLib(LIB)');
+                                                    });
+                                                    bundle.push('    };');
+                                                    bundle.push('});');
+            
+                                                    return LIB.fs.outputFile(apiBundleFile, bundle.join("\n"), "utf8", function (err) {
+                                                        if (err) return next(err);
+            
+                                                        // TODO: Use exporter core as declared in 'contexts' below instead of including module directly here
+                                                        const BROWSERIFY = require("../../cores/export/for/browserify/0-server.api").forLib(LIB);
+
+                                						return BROWSERIFY.bundleFiles(
+                                							LIB.path.dirname(apiBundleFile),
+                                							[
+                                								LIB.path.basename(apiBundleFile)
+                                							],
+                                							distPath
+                                						).then(function (bundle) {
+                                							res.writeHead(200, {
+                                								"Content-Type": "application/javascript"
+                                							});
+                                							return res.end(bundle);
+                                						}).catch(next);
+                                                    });
+                                		        }
                                             });
                                         }
                                     )
