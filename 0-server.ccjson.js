@@ -18,7 +18,9 @@ exports.forLib = function (LIB) {
 
                 var context = config.context();
 
-                return context.adapters["data.mapper"].loadCollectionModelsForPath(config.collectionsPath).then(function (models) {
+                return context.adapters["data.mapper"].loadCollectionModelsForPath(
+                    config.collectionsPath || config.collectionsPaths
+                ).then(function (models) {
 
                     var Producer = function () {
                         var self = this;
@@ -55,7 +57,9 @@ exports.forLib = function (LIB) {
                     var seeds = null;
                     function getSeeds () {
                         if (seeds) return seeds;
-                        return (seeds = context.adapters["data.mapper"].loadCollectionSeedsForPath(config.collectionsPath));
+                        return (seeds = context.adapters["data.mapper"].loadCollectionSeedsForPath(
+                            config.collectionsPath || config.collectionsPaths
+                        ));
                     }
 
                     // POLICY: This is the PUBLIC CONTEXT API accessible to all cores attatched to
@@ -159,11 +163,48 @@ config.alwaysRebuild = false;
     
                                                     var bundle = [];
                                                     bundle.push('window.waitForLibrary(function (LIB) {');
+                                                    
                                                     bundle.push('    LIB.Collections = {');
-                                                    Object.keys(api.models).forEach(function (modelAlias, i) {
+                                                    Object.keys(api.models).filter(function (modelAlias) {
+                                                        return api.models[modelAlias]._modulePath;
+                                                    }).forEach(function (modelAlias, i) {
                                                         bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + api.models[modelAlias]._modulePath + '").forLib(LIB)');
                                                     });
                                                     bundle.push('    };');
+                                                    
+                                                    var CollectionLoaders = {};
+                                                    Object.keys(api.models).filter(function (modelAlias) {
+                                                        return api.models[modelAlias]._moduleConfig;
+                                                    }).forEach(function (modelAlias, i) {
+                                                        // NOTE: We assume the prefix is the same for all collections in this loader.
+                                                        if (!CollectionLoaders[api.models[modelAlias]._moduleLoaderPath]) {
+                                                            CollectionLoaders[api.models[modelAlias]._moduleLoaderPath] = {
+                                                                prefix: api.models[modelAlias]._modulePrefix,
+                                                                collections: {}
+                                                            };
+                                                        }
+                                                        CollectionLoaders[api.models[modelAlias]._moduleLoaderPath].collections[
+                                                            modelAlias.substring(api.models[modelAlias]._modulePrefix.length)
+                                                        ] = api.models[modelAlias]._moduleConfig;
+                                                    });
+                                                    
+                                                    bundle.push('    LIB.CollectionLoaders = [');
+                                                    Object.keys(CollectionLoaders).forEach(function (loaderPath) {
+                                                        bundle.push('        function spin(context) {');
+                                                        bundle.push('            var ctx = LIB._.assign({}, context);');
+                                                        if (CollectionLoaders[loaderPath].prefix) {
+                                                            bundle.push('            LIB._.assign(ctx, {"collectionPrefix": "' + CollectionLoaders[loaderPath].prefix + '"});');
+                                                        }
+                                                        bundle.push('            var collectionControls = require("' + loaderPath + '").forLib(LIB).spin(ctx);');
+                                                        Object.keys(CollectionLoaders[loaderPath].collections).forEach(function (modelAlias) {
+                                                            bundle.push('            collectionControls.makeCollection("' + modelAlias + '", ' + JSON.stringify(
+                                                                CollectionLoaders[loaderPath].collections[modelAlias]
+                                                            ) + ');');
+                                                        });
+                                                        bundle.push('        }');
+                                                    });
+                                                    bundle.push('    ];');
+
                                                     bundle.push('});');
             
                                                     return LIB.fs.outputFile(apiBundleFile, bundle.join("\n"), "utf8", function (err) {

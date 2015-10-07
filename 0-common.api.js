@@ -8,7 +8,11 @@ exports.forLib = function (LIB) {
         var Collection = exports.Collection = function (config) {
             var collection = this;
 
+            collection._modulePrefix = config._modulePrefix;
+            collection._moduleLoaderPath = config._moduleLoaderPath;
+            collection._moduleConfig = config._moduleConfig;
             collection._modulePath = config._modulePath;
+
             collection["#contracts"] = config["#contracts"] || {};
 
             // If there are no record keys with '@' prefix we assume we got fields
