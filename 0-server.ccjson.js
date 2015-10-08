@@ -168,7 +168,7 @@ config.alwaysRebuild = false;
                                                     Object.keys(api.models).filter(function (modelAlias) {
                                                         return api.models[modelAlias]._modulePath;
                                                     }).forEach(function (modelAlias, i) {
-                                                        bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + api.models[modelAlias]._modulePath + '").forLib(LIB)');
+                                                        bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + LIB.path.relative(LIB.path.dirname(apiBundleFile), api.models[modelAlias]._modulePath) + '").forLib(LIB)');
                                                     });
                                                     bundle.push('    };');
                                                     
@@ -195,7 +195,7 @@ config.alwaysRebuild = false;
                                                         if (CollectionLoaders[loaderPath].prefix) {
                                                             bundle.push('            LIB._.assign(ctx, {"collectionPrefix": "' + CollectionLoaders[loaderPath].prefix + '"});');
                                                         }
-                                                        bundle.push('            var collectionControls = require("' + loaderPath + '").forLib(LIB).spin(ctx);');
+                                                        bundle.push('            var collectionControls = require("' + LIB.path.relative(LIB.path.dirname(apiBundleFile), loaderPath) + '").forLib(LIB).spin(ctx);');
                                                         Object.keys(CollectionLoaders[loaderPath].collections).forEach(function (modelAlias) {
                                                             bundle.push('            collectionControls.makeCollection("' + modelAlias + '", ' + JSON.stringify(
                                                                 CollectionLoaders[loaderPath].collections[modelAlias]
