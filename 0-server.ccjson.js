@@ -160,7 +160,24 @@ config.alwaysRebuild = false;
                                 		           	return LIB.fs.createReadStream(distPath).pipe(res);
                                 	
                                 		        } else {
-    
+                                		            
+                                		            function makeRelativePath (basePath, path) {
+                                		                var relpath = LIB.path.relative(LIB.path.dirname(basePath), path);
+                                		                
+                                		                if (
+                                		                    relpath.split("/").filter(function (segment) {
+                                                                return (segment === "..")
+                                                            }).length
+                                                            ==
+                                                            (basePath.split("/").length - 2)
+                            		                    ) {
+                                		                    // We went all the way to the root of the filesystem
+                                		                    // so we cannot use a relative path.
+                                		                    return path;
+                                		                }
+                                		                return relpath;
+                                		            }
+
                                                     var bundle = [];
                                                     bundle.push('window.waitForLibrary(function (LIB) {');
                                                     
@@ -168,7 +185,7 @@ config.alwaysRebuild = false;
                                                     Object.keys(api.models).filter(function (modelAlias) {
                                                         return api.models[modelAlias]._modulePath;
                                                     }).forEach(function (modelAlias, i) {
-                                                        bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + LIB.path.relative(LIB.path.dirname(apiBundleFile), api.models[modelAlias]._modulePath) + '").forLib(LIB)');
+                                                        bundle.push('        ' + (i>0?",":"") + '"' + modelAlias + '": require("' + makeRelativePath(apiBundleFile, api.models[modelAlias]._modulePath) + '").forLib(LIB)');
                                                     });
                                                     bundle.push('    };');
                                                     
@@ -195,7 +212,7 @@ config.alwaysRebuild = false;
                                                         if (CollectionLoaders[loaderPath].prefix) {
                                                             bundle.push('            LIB._.assign(ctx, {"collectionPrefix": "' + CollectionLoaders[loaderPath].prefix + '"});');
                                                         }
-                                                        bundle.push('            var collectionControls = require("' + LIB.path.relative(LIB.path.dirname(apiBundleFile), loaderPath) + '").forLib(LIB).spin(ctx);');
+                                                        bundle.push('            var collectionControls = require("' + makeRelativePath(apiBundleFile, loaderPath) + '").forLib(LIB).spin(ctx);');
                                                         Object.keys(CollectionLoaders[loaderPath].collections).forEach(function (modelAlias) {
                                                             bundle.push('            collectionControls.makeCollection("' + modelAlias + '", ' + JSON.stringify(
                                                                 CollectionLoaders[loaderPath].collections[modelAlias]
