@@ -296,6 +296,9 @@ exports.forLib = function (LIB) {
         										    var fields = consumer.getData(record);
         											return {
         											    get: function (name) {
+        											        if (name === "*") {
+        											            return fields;
+        											        }
         											        return fields[name];
         											    }
         											};
