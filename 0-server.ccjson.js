@@ -162,8 +162,13 @@ config.alwaysRebuild = false;
                                 		        } else {
                                 		            
                                 		            function makeRelativePath (basePath, path) {
-                                		                var relpath = LIB.path.relative(LIB.path.dirname(basePath), path);
-                                		                
+                                		                if (!LIB.fs.existsSync(LIB.path.dirname(basePath))) {
+                                		                    LIB.fs.mkdirsSync(LIB.path.dirname(basePath));
+                                		                }
+                                		                var relpath = LIB.path.relative(
+                                		                    LIB.fs.realpathSync(LIB.path.dirname(basePath)),
+                                		                    LIB.fs.realpathSync(path)
+                                		                );
                                 		                if (
                                 		                    relpath.split("/").filter(function (segment) {
                                                                 return (segment === "..")
