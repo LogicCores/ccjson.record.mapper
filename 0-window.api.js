@@ -200,6 +200,16 @@ exports.forLib = function (LIB) {
         //console.log("pointerSegment", pointerSegment);						
         						var query = pointerSegment.match(/^(\*)?(\[.+\])?$/);
         //console.log("query", query);						
+
+                                function replaceQueryArgs (value, query) {
+                                    if (!query || !value) return value;
+									for (var name in query) {
+										// TODO: Replace multiple occurences.
+										value = value.replace("{" + name + "}", query[name]);
+									}
+									return value;
+                                }
+
         						if (query) {
         
         							var consumer = null
@@ -217,15 +227,6 @@ exports.forLib = function (LIB) {
         							while (match = re.exec(query[2] || "")) {
         								where[match[2]] = match[3];
         							}
-
-                                    function replaceQueryArgs (value, query) {
-                                        if (!query) return value;
-										for (var name in query) {
-											// TODO: Replace multiple occurences.
-											value = value.replace("{" + name + "}", query[name]);
-										}
-										return value;
-                                    }
 
         							subscriptions.push({
         								_name: "query",
@@ -359,7 +360,6 @@ exports.forLib = function (LIB) {
             							    return dictionaryForSegment.name + "/" + pointerSegment;
             							},
         								get: function () {
-        
         									if (typeof this.dictionary.get !== "function") {
             								    console.warn("Dictionary '" + this.dictionary.toString() + "' does not implement method 'get()'");
             								    return {};
@@ -367,9 +367,7 @@ exports.forLib = function (LIB) {
         									}
 
         									// TODO: Warn if field does not exist!
-
 											var query = replaceQueryArgs(this.query, this.queryArgs);
-
         									return {
         										dictionary: this.dictionary.get(query)
         									};
