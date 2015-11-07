@@ -733,6 +733,20 @@ exports.forLib = function (LIB) {
         Consumer.prototype = Object.create(LIB.EventEmitter.prototype);
 
 
+        // Init initial collection data.
+        var initialData = context.getCollectionsInitialData();
+        if (initialData) {
+            // Insert initial records as each collection is registered.
+            context.on("collection:registered", function (collection) {
+                if (initialData[collection.name]) {
+                    collection.store.add(LIB._.values(initialData[collection.name]), {
+        			    merge: true
+        			});
+                }
+            });
+        }
+
+
         return {
             Consumer: Consumer,
             get: function (pointer) {
