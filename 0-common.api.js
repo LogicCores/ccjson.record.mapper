@@ -89,7 +89,7 @@ exports.forLib = function (LIB) {
         					config.record["@fields"][name].linksToOne
         				) {
         					var value = getValueForField();
-        					return exports.get(config.record["@fields"][name].linksToOne + "/" + value + "/" + nameParts.join("/"));
+        					return context.contexts.adapters.data["ccjson.record.mapper"].get(config.record["@fields"][name].linksToOne + "/" + value + "/" + nameParts.join("/"));
         
         				} else {
         

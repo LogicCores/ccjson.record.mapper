@@ -238,7 +238,7 @@ exports.forLib = function (LIB) {
             							},
         								get: function () {
         								    var self = this;
-        
+
         									var whereInstance = JSON.stringify(where);
 											whereInstance = replaceQueryArgs(whereInstance, this.queryArgs);
         									whereInstance = JSON.parse(whereInstance);
@@ -292,6 +292,7 @@ exports.forLib = function (LIB) {
                                             }
 
         									var records = this.dictionary.where(whereInstance);
+
         									if (consumer) {
         										records = records.map(function (record) {
         										    var fields = consumer.getData(record);
@@ -342,7 +343,7 @@ exports.forLib = function (LIB) {
         									if (typeof this.dictionary[methodName] !== "function") {
         										throw new Error("Collection '" + this.dictionary.toString() + "' does not have method '" + methodName + "'");
         									}
-        
+
         									return {
         										dictionary: this.dictionary[methodName].call(this.dictionary)
         									};
