@@ -141,8 +141,11 @@ console.log("PARSE DATA in collection", data);
     			});
     		}
 
+    		collection.getRawAdapter = function (adapterAlias) {
+                return context.contexts.adapters[adapterAlias].adapter;
+    		}
     		collection.getModel = function (modelAlias) {
-    		    // TODO: Map model aliases to implementations/instances using ccjson
+    		    console.error("DEPRECTED!", new Error().stack);
     		    var adapter = context.contexts.adapters[modelAlias];
     		    // TODO: Use standard API to fetch model
     		    return adapter.models[collection.name];
@@ -208,30 +211,13 @@ console.log("PARSE DATA in collection", data);
     	Collection.prototype.add = function (record) {
     		return this.store.add(record);
     	}
-    	Collection.prototype.get = function (id, options) {
+
+    	Collection.prototype.get = function (id) {
     	    var collection = this;
-    	    options = options || {};
-/*
-    	    if (options.ensure === true) {
-    	        return new LIB.Promise(function (resolve, reject) {
-    	            try {
-    	                function check () {
-            	            var record = collection.store.get(id);
-            	            if (record) return resolve(record);
-            	            collection.once("change", function (name) {
-            	                return check();
-            	            });
-    	                }
-    	                check();
-    	            } catch (err) {
-    	                return reject(err);
-    	            }
-    	        });
-    	    }
-*/
     		return collection.store.get(id);
     	}
     	Collection.prototype.where = function (query) {
+    	    var collection = this;
 
             // We need to convert some string query values to integers or they
             // will not match anything.
@@ -251,7 +237,7 @@ console.log("PARSE DATA in collection", data);
     	    }
 //console.log("concreteQuery", concreteQuery);
 
-    		return this.store.where(concreteQuery);
+    		return collection.store.where(concreteQuery);
     	}
 
 
