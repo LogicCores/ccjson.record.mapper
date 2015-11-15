@@ -145,9 +145,12 @@ console.log("PARSE DATA in collection", data);
                 return context.contexts.adapters[adapterAlias].adapter;
     		}
     		collection.getModel = function (modelAlias) {
-    		    console.error("DEPRECTED!", new Error().stack);
-    		    var adapter = context.contexts.adapters[modelAlias];
-    		    // TODO: Use standard API to fetch model
+    		    console.error("DEPRECATED: Use 'getAbstraction()' instead:", new Error().stack);
+    		    return this.getAbstraction(modelAlias);
+    		};
+    		collection.getAbstraction = function (adapterAlias) {
+    		    var adapter = context.contexts.adapters[adapterAlias];
+    		    // TODO: Use standard API to fetch abstraction
     		    return adapter.models[collection.name];
     		};
 
