@@ -617,28 +617,26 @@ exports.forLib = function (LIB) {
 
                 var url = LIB.urijs(sourceBaseUrl + "/" + pointer).query(query).toString();
 
-                pointerLoadPromises[pointer] = new LIB.Promise(function (resolve, reject) {
-
-                	return context.contexts.adapters.fetch.window.fetch(url).then(function(response) {
-        				return response.json();
-        			}).then(function (data) {
-        			    Object.keys(data).forEach(function (collectionName) {
-        			        var collection = context.getCollection(collectionName);
-        			        if (!collection) {
-        			            // TODO: Optionally just issue warning
-        			            throw new Error("Collection with name '" + collectionName + "' needed to store fetched data not found!");
-        			        }
-                            if (data[collectionName].length > 0) {
-                    			collection.store.add(data[collectionName], {
-                    			    merge: true
-                    			});
-                            }
-        			    });
-        			}).then(function () {
-        		        self.emit("loaded", pointer);
-        		        return resolve();
-        			}).catch(reject);
-                }).catch(function (err) {
+                pointerLoadPromises[pointer] = context.contexts.adapters.fetch.window.fetch(url).then(function(response) {
+    				return response.json();
+    			}).then(function (data) {
+    			    Object.keys(data).forEach(function (collectionName) {
+    			        var collection = context.getCollection(collectionName);
+    			        if (!collection) {
+    			            // TODO: Optionally just issue warning
+    			            throw new Error("Collection with name '" + collectionName + "' needed to store fetched data not found!");
+    			        }
+                        if (data[collectionName].length > 0) {
+                			collection.store.add(data[collectionName], {
+                			    merge: true
+                			});
+                        }
+    			    });
+    			    return null;
+    			}).then(function () {
+    		        self.emit("loaded", pointer);
+    		        return null;
+    			}).catch(function (err) {
     			    console.error("Error fetching session info from '" + url + "':", err.stack);
     			    throw err;
     			});
