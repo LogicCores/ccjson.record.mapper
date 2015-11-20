@@ -142,7 +142,7 @@ config.alwaysRebuild = false;
                                         function (req, res, next) {
 
                                             var apiBundleFile = LIB.path.join(config.collectionsDistPath, "ccjson.record.mapper.js");
-                                            var distPath = LIB.path.join(apiBundleFile, "..", "ccjson.record.mapper.dist.js");
+                                            var distPath = LIB.path.join(apiBundleFile, "..", "ccjson.record.mapper.js");
 
                                             return LIB.fs.exists(distPath, function (exists) {
                                 
@@ -152,13 +152,13 @@ config.alwaysRebuild = false;
                                 		        		config.alwaysRebuild === false
                                 		        	)
                                 		        ) {
-                                		           	// We return a pre-built file if it exists and are being asked for it
-                                					res.writeHead(200, {
-                                						"Content-Type": "application/javascript"
-                                					});
 
-                                		           	return LIB.fs.createReadStream(distPath).pipe(res);
-                                	
+                                		           	// We return a pre-built file if it exists and are being asked for it
+                                                    return LIB.send(req, LIB.path.basename(distPath), {
+                                                		root: LIB.path.dirname(distPath),
+                                                		maxAge: config.clientCacheTTL || 0
+                                                	}).on("error", next).pipe(res);                                		            
+
                                 		        } else {
                                 		            
                                 		            function makeRelativePath (basePath, path) {
@@ -228,10 +228,10 @@ config.alwaysRebuild = false;
                                                     bundle.push('    ];');
 
                                                     bundle.push('});');
-            
+
                                                     return LIB.fs.outputFile(apiBundleFile, bundle.join("\n"), "utf8", function (err) {
                                                         if (err) return next(err);
-            
+
                                                         // TODO: Use exporter core as declared in 'contexts' below instead of including module directly here
                                                         const BROWSERIFY = require("../../cores/export/for/browserify/0-server.api").forLib(LIB);
 
@@ -241,11 +241,13 @@ config.alwaysRebuild = false;
                                 								LIB.path.basename(apiBundleFile)
                                 							],
                                 							distPath
-                                						).then(function (bundle) {
-                                							res.writeHead(200, {
-                                								"Content-Type": "application/javascript"
-                                							});
-                                							return res.end(bundle);
+                                						).then(function () {
+
+                                                            return LIB.send(req, LIB.path.basename(distPath), {
+                                                        		root: LIB.path.dirname(distPath),
+                                                        		maxAge: config.clientCacheTTL || 0
+                                                        	}).on("error", next).pipe(res);
+
                                 						}).catch(next);
                                                     });
                                 		        }
