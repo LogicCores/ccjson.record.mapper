@@ -24,8 +24,18 @@ exports.forLib = function (LIB) {
         	rootCollectionsOptions = rootCollectionsOptions || {};
         
         	var listeners = [];
-        
-        	function attachListener (target, event, handler) {
+        	var listenersByIdentity = {};
+
+
+        	function ensureListener (target, event, handler) {
+
+        	    var id = target.name + ":" + event;
+        	    if (listenersByIdentity[id]) {
+        	        return;
+        	    }
+
+    	        listenersByIdentity[id] = handler;
+
         		target.on(event, handler);
         		listeners.push({
         			destroy: function () {
@@ -507,7 +517,7 @@ exports.forLib = function (LIB) {
         			    if (!collection) {
         			        throw new Error("Collection for name '" + parts[1] + "' not found!");
         			    }
-                        attachListener(collection, parts[0], function (event) {
+                        ensureListener(collection, parts[0], function (event) {
                             // TODO: Verify that data has in fact changed (based on last fetched data)
                             //       and do not fire event if not changed.
 //console.log("NOTIFY: mapper collection changed", parts[1], event);
@@ -719,8 +729,6 @@ exports.forLib = function (LIB) {
         	}
 
         	self.destroy = function () {
-
-//console.log("RELEASE ALL LISTENERS!");
 
         		self.removeAllListeners();
 
